@@ -44,12 +44,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $created_by = $_SESSION['user']['user_id'];
-$sql = "SELECT subject_id, subject_name, year_level, section, created_by, 
-               (SELECT CONCAT(fname, ' ', mname, ' ', lname, ' ', ename) FROM teachers WHERE user_id = created_by) AS created_by_fullname 
-        FROM subjects 
-        WHERE created_by = ?";
+$sql = "SELECT 
+            s.subject_id, 
+            s.subject_name, 
+            s.year_level, 
+            s.section, 
+            s.created_by,
+            CONCAT(t.fname, ' ', t.mname, ' ', t.lname, ' ', COALESCE(t.ename, '')) AS created_by_fullname,
+            CASE 
+                WHEN s.created_by = ? THEN 'Owner'
+                ELSE 'Collaborator'
+            END as role
+        FROM subjects s
+        LEFT JOIN teachers t ON s.created_by = t.user_id
+        WHERE s.created_by = ? 
+        OR s.subject_id IN (
+            SELECT subject_id 
+            FROM teacher_collaborations 
+            WHERE teacher_id = ?
+        )
+        ORDER BY s.year_level, s.section, s.subject_name";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $created_by);
+$stmt->bind_param("iii", $created_by, $created_by, $created_by);
 $stmt->execute();
 $result = $stmt->get_result();
 $classes = [];
@@ -161,7 +178,12 @@ $conn->close();
 
         <!-- Main content -->
         <div class="col-md-9" id="mainContent">
-            <h1>My Subejcts</h1>
+            <h1>My Subjects</h1>
+            <div class="mb-3 text-end">
+                <a href="manage_collaboration.php" class="btn btn-primary">
+                    <i class="fa-solid fa-users"></i> Manage Collaborators
+                </a>
+            </div>
             <table id="classTable" class="table table-striped smaller-table" style="width:100%">
                 <thead>
                     <tr>
@@ -170,6 +192,7 @@ $conn->close();
                         <th>Year Level</th>
                         <th>Section</th>
                         <th>Created By</th>
+                        <th>Role</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -182,10 +205,17 @@ $conn->close();
                             <td><?= htmlspecialchars($class['section']) ?></td>
                             <td><?= htmlspecialchars($class['created_by_fullname']) ?></td>
                             <td>
+                                <span class="badge <?= $class['role'] === 'Owner' ? 'bg-primary' : 'bg-info' ?>">
+                                    <?= htmlspecialchars($class['role']) ?>
+                                </span>
+                            </td>
+                            <td>
                                 <a class="btn btn-info view-btn"
                                     href="classsubject.php?year_level=<?= urlencode($class['year_level']) ?>&section=<?= urlencode($class['section']) ?>&subject=<?= urlencode($class['subject_name']) ?>">View</a>
-                                <button class="btn btn-danger delete-btn"
-                                    data-id="<?= $class['subject_id'] ?>">Delete</button>
+                                <?php if ($class['role'] === 'Owner'): ?>
+                                    <button class="btn btn-danger delete-btn"
+                                        data-id="<?= $class['subject_id'] ?>">Delete</button>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

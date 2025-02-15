@@ -240,6 +240,16 @@ include '../adminsidebackends/add_students.php';
                         </div>
                     </div>
                 </form>
+
+                <!-- Form for uploading Excel file -->
+                <h3 style="margin-top: 10px;">Upload Students via Excel</h3>
+                <form id="uploadForm" method="POST" enctype="multipart/form-data" action="upload.php">
+                    <div class="form-group">
+                        <label for="file">Select Excel File:</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".xlsx" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">Upload</button>
+                </form>
             </div>
         </div>
     </div>
@@ -303,6 +313,61 @@ include '../adminsidebackends/add_students.php';
                     };
                     request.send(formData);
                 }
+            });
+        });
+
+        // Handle the upload form submission
+        var uploadForm = document.getElementById('uploadForm');
+        uploadForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            var formData = new FormData(uploadForm);
+
+            fetch('upload.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: 'Success!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = 'addstudents.php';
+                        }
+                    });
+                } else {
+                    let errorMessage = data.message;
+                    if (data.errors) {
+                        errorMessage += '\n' + data.errors.join('\n');
+                    }
+                    Swal.fire({
+                        title: 'Error!',
+                        text: errorMessage,
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = 'addstudents.php';
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    title: 'Error!',
+                    text: 'An error occurred while processing your request.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = 'addstudents.php';
+                    }
+                });
             });
         });
 

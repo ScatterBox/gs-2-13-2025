@@ -45,6 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $subject_name = $_POST["subject_name"];
     $year_level = $_POST["year_level"];
     $section = $_POST["section"];
+    $school_year = $_POST["school_year"];
     $created_by = $loggedInUserId;
 
     // Check if the year level and section exist in the students table
@@ -72,8 +73,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Insert the subject into the subjects table
-    $stmt = $conn->prepare("INSERT INTO subjects (subject_name, year_level, section, created_by) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("ssss", $subject_name, $year_level, $section, $created_by);
+    $stmt = $conn->prepare("INSERT INTO subjects (subject_name, year_level, section, school_year, created_by) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssss", $subject_name, $year_level, $section, $school_year, $created_by);
 
     if ($stmt->execute()) {
         $subject_id = $stmt->insert_id;
@@ -237,10 +238,19 @@ $conn->close();
                             <div class="form-group">
                                 <label for="section">Section assigned:</label>
                                 <select class="form-control item" id="section" name="section" required>
-                                    <option value="" disabled selected>Select Section</option>
-                                    <?php foreach ($sections as $section): ?>
-                                        <option value="<?php echo $section; ?>"><?php echo $section; ?></option>
-                                    <?php endforeach; ?>
+                                    <option value="" disabled selected>Select Year Level First</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-5">
+                            <div class="form-group">
+                                <label for="school_year">School Year:</label>
+                                <select class="form-control item" id="school_year" name="school_year" required>
+                                    <option value="" disabled selected>Select School Year</option>
+                                    <option value="2024-2025">2024-2025</option>
+                                    <option value="2025-2026">2025-2026</option>
+                                    <option value="2026-2027">2026-2027</option>
                                 </select>
                             </div>
                         </div>
@@ -259,6 +269,31 @@ $conn->close();
     </div>
 
     <script>
+        document.getElementById('year_level').addEventListener('change', function() {
+            const yearLevel = this.value;
+            const sectionSelect = document.getElementById('section');
+            
+            // Clear current options
+            sectionSelect.innerHTML = '<option value="" disabled selected>Loading sections...</option>';
+            
+            // Fetch sections for selected year level
+            fetch(`get_sections.php?year_level=${yearLevel}`)
+                .then(response => response.json())
+                .then(sections => {
+                    sectionSelect.innerHTML = '<option value="" disabled selected>Select Section</option>';
+                    sections.forEach(section => {
+                        const option = document.createElement('option');
+                        option.value = section;
+                        option.textContent = section;
+                        sectionSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching sections:', error);
+                    sectionSelect.innerHTML = '<option value="" disabled selected>Error loading sections</option>';
+                });
+        });
+
         document.getElementById('classForm').addEventListener('submit', function (event) {
             event.preventDefault();
 

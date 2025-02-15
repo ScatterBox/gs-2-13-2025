@@ -38,9 +38,12 @@ if (!empty($user_id)) {
     $sql = "SELECT sb.subject_id, sb.subject_name 
             FROM student_subjects ss
             INNER JOIN subjects sb ON ss.subject_id = sb.subject_id
-            WHERE ss.student_id = ? AND sb.created_by = ?";
+            WHERE ss.student_id = ? AND (sb.created_by = ? OR EXISTS (
+                SELECT 1 FROM teacher_collaborations tc 
+                WHERE tc.subject_id = sb.subject_id AND tc.teacher_id = ?
+            ))";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ii", $user_id, $_SESSION['user_id']);
+    $stmt->bind_param("iii", $user_id, $_SESSION['user']['user_id'], $_SESSION['user']['user_id']);
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
@@ -146,12 +149,12 @@ $conn->close();
 
         <!-- Main content -->
         <div class="col-md-9" id="mainContent">
-            <h1>Grade: <?php echo $fullname; ?></h1>
+            <h1>Name: <?php echo $fullname; ?></h1>
             <h4>Class: <?php echo strtoupper($year_level) . ' - ' . strtoupper($section); ?></h4>
             <!-- ✅ Fixed Format -->
 
             <form action="submit_grade.php" method="POST">
-                <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
+            <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($user_id); ?>">
                 <input type="hidden" name="fullname" value="<?php echo $fullname; ?>">
                 <input type="hidden" name="year_level" value="<?php echo $year_level; ?>">
                 <input type="hidden" name="section" value="<?php echo $section; ?>">
@@ -179,7 +182,7 @@ $conn->close();
                     <select name="category" id="category" class="form-control" required>
                         <option value="" disabled selected>Select Category</option>
                         <option value="performance_tasks">Performance Task</option>
-                        <option value="quarterly_assessments">Quarterly Assessment</option>
+                        <option value="quarterly_assessment">Quarterly Assessment</option>
                         <option value="written_works">Written Works</option>
                     </select>
                 </div>

@@ -22,21 +22,30 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Fetch student data with only the subjects assigned by the logged-in teacher
+// Fetch student data with subjects assigned by the logged-in teacher or where teacher is a collaborator
 $sql = "SELECT s.user_id, s.fname, s.mname, s.lname, s.ename, s.age, s.sex, s.address, 
                s.year_level, s.section, s.email, 
-               GROUP_CONCAT(sb.subject_name SEPARATOR ', ') AS subjects 
+               GROUP_CONCAT(DISTINCT sb.subject_name SEPARATOR ', ') AS subjects,
+               GROUP_CONCAT(DISTINCT 
+                    CASE 
+                        WHEN sb.created_by = ? THEN 'Owner'
+                        ELSE 'Collaborator'
+                    END 
+                    SEPARATOR ', ') as roles
         FROM students s
         INNER JOIN student_subjects ss ON s.user_id = ss.student_id
         INNER JOIN subjects sb ON ss.subject_id = sb.subject_id 
-              AND sb.year_level = s.year_level 
-              AND sb.section = s.section
-              AND sb.created_by = ?
+        WHERE sb.created_by = ? 
+        OR sb.subject_id IN (
+            SELECT subject_id 
+            FROM teacher_collaborations 
+            WHERE teacher_id = ?
+        )
         GROUP BY s.user_id, s.fname, s.mname, s.lname, s.ename, s.age, s.sex, 
-                 s.address, s.year_level, s.section, s.email";  // ✅ FIXED: Added missing columns
+                 s.address, s.year_level, s.section, s.email";
 
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $loggedInUserId);
+$stmt->bind_param("iii", $loggedInUserId, $loggedInUserId, $loggedInUserId);
 $stmt->execute();
 $result = $stmt->get_result();
 $students = [];
@@ -56,6 +65,7 @@ if ($result->num_rows > 0) {
             'year_level' => isset($row['year_level']) ? $row['year_level'] : 'N/A',
             'section' => isset($row['section']) ? $row['section'] : 'N/A',
             'subjects' => !empty($row['subjects']) ? $row['subjects'] : 'No subjects',
+            'roles' => !empty($row['roles']) ? $row['roles'] : 'No roles',
             'email' => isset($row['email']) ? $row['email'] : 'N/A'
         ];
     }
@@ -162,6 +172,11 @@ $conn->close();
         <!-- Main content -->
         <div class="col-md-9" id="mainContent">
             <h1 style="text-align: center;">Student with my subjects</h1>
+            <div class="mb-3 text-end">
+                <a href="add_student_to_subject.php" class="btn btn-primary">
+                    <i class="fa-solid fa-user-plus"></i> Add Student to Subject
+                </a>
+            </div>
             <table id="studentTable" class="table table-striped smaller-table" style="width:100%">
                 <thead>
                     <tr>
@@ -172,7 +187,8 @@ $conn->close();
                         <th>Address</th>
                         <th>Year Level</th>
                         <th>Section</th>
-                        <th>Subjects from: Me</th>
+                        <th>Subjects</th>
+                        <th>Role</th>
                         <th>Email</th>
                         <th>Action</th>
                     </tr>
@@ -188,6 +204,7 @@ $conn->close();
                             <td><?php echo htmlspecialchars($student['year_level']); ?></td>
                             <td><?php echo htmlspecialchars($student['section']); ?></td>
                             <td><?php echo htmlspecialchars($student['subjects']); ?></td>
+                            <td><?php echo htmlspecialchars($student['roles']); ?></td>
                             <td><?php echo htmlspecialchars($student['email']); ?></td>
                             <td>
                                 <a class="btn btn-info view-btn" href="gradestudent.php?user_id=<?php echo urlencode($student['user_id']); ?>

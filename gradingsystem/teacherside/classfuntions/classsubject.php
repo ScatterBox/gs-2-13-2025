@@ -24,14 +24,27 @@ $year_level = $_GET['year_level'];
 $section = $_GET['section'];
 $subject = $_GET['subject'];
 
-// Fetch students in the specified year level and section with the assigned subject
+// Get the subject details first
+$sql = "SELECT subject_id FROM subjects WHERE subject_name = ? AND year_level = ? AND section = ? LIMIT 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("sss", $subject, $year_level, $section);
+$stmt->execute();
+$subject_result = $stmt->get_result()->fetch_assoc();
+
+if (!$subject_result) {
+    die("Error: Subject not found");
+}
+
+$subject_id = $subject_result['subject_id'];
+
+// Now fetch students
 $sql = "SELECT s.user_id, s.fname, s.mname, s.lname, s.nickname, s.age, s.sex, s.birthdate, s.address, s.email, s.ename
         FROM students s
         JOIN student_subjects ss ON s.user_id = ss.student_id
-        JOIN subjects sub ON ss.subject_id = sub.subject_id
-        WHERE sub.subject_name = ? AND s.year_level = ? AND s.section = ?";
+        WHERE ss.subject_id = ?";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("sss", $subject, $year_level, $section);
+$stmt->bind_param("i", $subject_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -147,14 +160,17 @@ $conn->close();
                 <h1>Students List for <?= htmlspecialchars($subject) ?> - <?= htmlspecialchars($year_level) ?> -
                     <?= htmlspecialchars($section) ?>
                 </h1>
+                <div class="mb-3 text-end">
+                <a href="add_student_to_subject.php" class="btn btn-primary">
+                    <i class="fa-solid fa-user-plus"></i> Add Student to Subject
+                </a>
+            </div>
                 <table id="studentsTable" class="table table-striped smaller-table" style="width:100%">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Full Name</th>
-                            <th>Performance Tasks</th>
-                            <th>Quarterly Assessments</th>
-                            <th>Written Works</th>
+                            <th>Performance View</th>
                             <th>Final Grade</th>
                         </tr>
                     </thead>
@@ -164,12 +180,11 @@ $conn->close();
                                 <td><?= htmlspecialchars($student['user_id']) ?></td>
                                 <td><?= htmlspecialchars($student['fname'] . ' ' . $student['mname'] . ' ' . $student['lname'] . ' ' . ($student['ename'] ?? '')) ?>
                                 </td>
-                                <td><a class="btn btn-info"
-                                        href="performance_tasks.php?student_id=<?= $student['user_id'] ?>">View</a></td>
-                                <td><a class="btn btn-info"
-                                        href="quarterly_assessments.php?student_id=<?= $student['user_id'] ?>">View</a></td>
-                                <td><a class="btn btn-info"
-                                        href="written_works.php?student_id=<?= $student['user_id'] ?>">View</a></td>
+                                <td>
+                                    <a class="btn btn-primary" href="student_performance.php?student_id=<?= $student['user_id'] ?>&subject_id=<?= $subject_id ?>">
+                                        <i class="fas fa-chart-line"></i> View Performance
+                                    </a>
+                                </td>
                                 <td></td> <!-- Final Grade column left blank -->
                             </tr>
                         <?php endforeach; ?>
